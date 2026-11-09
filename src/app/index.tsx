@@ -2,6 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -11,40 +12,8 @@ import {
 import { useRouter } from "expo-router";
 
 import { colors, styles } from "../constants/styles";
-
-// TYPE / INTERFACE
-interface Book {
-  id: number;
-  title: string;
-  author: string;
-  category: string;
-  year: number;
-}
-
-// ARRAY OF OBJECTS
-const books: Book[] = [
-  {
-    id: 1,
-    title: "Pemrograman Mobile",
-    author: "Andi Pratama",
-    category: "Teknologi",
-    year: 2025,
-  },
-  {
-    id: 2,
-    title: "Belajar JavaScript",
-    author: "Budi Santoso",
-    category: "Pemrograman",
-    year: 2024,
-  },
-  {
-    id: 3,
-    title: "Dasar-Dasar UI/UX",
-    author: "Citra Lestari",
-    category: "Desain",
-    year: 2025,
-  },
-];
+import { Book } from "../types/book";
+import { fetchBooks } from "../services/bookService";
 
 // CUSTOM FUNCTION
 function getBookStatus(year: number): string {
@@ -68,14 +37,16 @@ function BookCard({ book }: { book: Book }) {
       </View>
 
       <View style={styles.bookInfo}>
-        <Text style={styles.bookTitle}>{book.title}</Text>
+        <Text style={styles.bookTitle}>
+          {book.title}
+        </Text>
 
         <Text style={styles.author}>
           Penulis: {book.author}
         </Text>
 
         <Text style={styles.category}>
-          {book.category} • {book.year}
+          {book.category} • {book.year || "Tahun tidak diketahui"}
         </Text>
 
         <Text style={styles.status}>
@@ -91,16 +62,48 @@ export default function Index() {
   const router = useRouter();
 
   // USESTATE
+  const [books, setBooks] = useState<Book[]>([]);
   const [selectedCount, setSelectedCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // USEEFFECT
+  // CUSTOM FUNCTION UNTUK MENGAMBIL DATA API
+  function loadBooks() {
+    setLoading(true);
+    setError("");
+
+    fetchBooks()
+      .then((data) => {
+        // Jika API berhasil
+        setBooks(data);
+        console.log("Data buku berhasil:", data);
+      })
+      .catch((err: Error) => {
+        // Jika API gagal
+        setError(err.message);
+        console.log("Terjadi error:", err.message);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }
+
+  // USEEFFECT: MENGAMBIL DATA SAAT HALAMAN DIBUKA
+  useEffect(() => {
+    loadBooks();
+  }, []);
+
+  // USEEFFECT: MEMANTAU PERUBAHAN JUMLAH PILIHAN
   useEffect(() => {
     console.log("Jumlah pilihan berubah:", selectedCount);
   }, [selectedCount]);
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+      }}
       contentContainerStyle={styles.container}
       showsVerticalScrollIndicator={true}
     >
@@ -108,8 +111,13 @@ export default function Index() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.smallText}>BOOKLIST</Text>
-            <Text style={styles.title}>Daftar Buku</Text>
+            <Text style={styles.smallText}>
+              BOOKLIST
+            </Text>
+
+            <Text style={styles.title}>
+              Daftar Buku
+            </Text>
           </View>
 
           <Ionicons
@@ -124,31 +132,79 @@ export default function Index() {
         </Text>
       </View>
 
-      {/* DAFTAR BUKU */}
+      {/* DAFTAR BUKU DARI API */}
       <View style={styles.listContainer}>
-        <Text style={styles.sectionTitle}>Koleksi Buku</Text>
+        <Text style={styles.sectionTitle}>
+          Koleksi Buku
+        </Text>
 
-        {books.map((book) => (
-          <BookCard key={book.id} book={book} />
-        ))}
+        {/* LOADING */}
+        {loading && (
+          <View style={{ alignItems: "center", padding: 20 }}>
+            <ActivityIndicator
+              size="large"
+              color={colors.primary}
+            />
+
+            <Text style={styles.totalText}>
+              Sedang mengambil data buku...
+            </Text>
+          </View>
+        )}
+
+        {/* ERROR */}
+        {!loading && error !== "" && (
+          <View style={{ alignItems: "center", padding: 16 }}>
+            <Text style={{ color: "red", marginBottom: 12 }}>
+              {error}
+            </Text>
+
+            <Pressable
+              style={styles.button}
+              onPress={loadBooks}
+            >
+              <Text style={styles.buttonText}>
+                Coba Lagi
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* DATA BERHASIL DITAMPILKAN */}
+        {!loading &&
+          error === "" &&
+          books.map((book) => (
+            <BookCard
+              key={book.id}
+              book={book}
+            />
+          ))}
+
+        {/* JIKA DATA KOSONG */}
+        {!loading &&
+          error === "" &&
+          books.length === 0 && (
+            <Text style={styles.totalText}>
+              Belum ada data buku.
+            </Text>
+          )}
       </View>
 
-      {/* TOMBOL TAMBAH BUKU */}
+      {/* TOMBOL AMBIL DATA ULANG */}
       <Pressable
         style={styles.button}
-        onPress={() =>
-          Alert.alert(
-            "Informasi",
-            "Fitur tambah buku belum tersedia."
-          )
-        }
+        onPress={loadBooks}
+        disabled={loading}
       >
         <Ionicons
-          name="add-circle-outline"
-          size={22}
+          name="refresh-outline"
+          size={20}
           color={colors.white}
         />
-        <Text style={styles.buttonText}>Tambah Buku</Text>
+
+        <Text style={styles.buttonText}>
+          Ambil Data Buku
+        </Text>
       </Pressable>
 
       {/* USESTATE */}
@@ -158,7 +214,9 @@ export default function Index() {
           setSelectedCount((previous) => previous + 1)
         }
       >
-        <Text style={styles.buttonText}>Pilih Buku (+1)</Text>
+        <Text style={styles.buttonText}>
+          Pilih Buku (+1)
+        </Text>
       </Pressable>
 
       <Text style={styles.totalText}>
@@ -170,7 +228,9 @@ export default function Index() {
         style={styles.button}
         onPress={() => router.push("/detail")}
       >
-        <Text style={styles.buttonText}>Buka Detail Buku</Text>
+        <Text style={styles.buttonText}>
+          Buka Detail Buku
+        </Text>
       </Pressable>
 
       {/* ROUTER.CAN GO BACK */}
