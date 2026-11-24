@@ -4,6 +4,7 @@ export interface Book {
   author: string;
   category: string;
   year: number;
+  availability: string;
 }
 
 export interface OpenLibraryResponse {
@@ -13,5 +14,10 @@ export interface OpenLibraryResponse {
     author_name?: string[];
     first_publish_year?: number;
     subject?: string[];
+    availability?: {
+      available_to_borrow?: boolean;
+      available_to_browse?: boolean;
+      is_previewable?: boolean;
+    };
   }[];
 }
