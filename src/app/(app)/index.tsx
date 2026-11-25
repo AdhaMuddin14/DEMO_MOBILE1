@@ -117,7 +117,7 @@ const dashboardStyles = StyleSheet.create({
 });
 
 export default function LibraryDashboard() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, realtimeStatus, realtimeRevision } = useAuth();
   const metadataDisplayName = user?.user_metadata?.display_name;
   const currentDisplayName =
     typeof metadataDisplayName === "string" && metadataDisplayName.trim()
@@ -227,7 +227,7 @@ export default function LibraryDashboard() {
     }, 0);
 
     return () => clearTimeout(timer);
-  }, [loadTasks, user]);
+  }, [loadTasks, user, realtimeRevision]);
 
   async function addTask() {
     if (!user || submitting) return;
@@ -410,6 +410,47 @@ export default function LibraryDashboard() {
                   }}
                 >
                   {connectionStatus}
+                </Text>
+              </View>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  backgroundColor: colors.card,
+                  borderRadius: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                }}
+              >
+                <Ionicons
+                  name={realtimeStatus === "connected" ? "radio-outline" : "radio-outline"}
+                  size={16}
+                  color={
+                    realtimeStatus === "connected"
+                      ? "#15803D"
+                      : realtimeStatus === "connecting"
+                        ? colors.primary
+                        : "#B91C1C"
+                  }
+                />
+                <Text
+                  style={{
+                    color:
+                      realtimeStatus === "connected"
+                        ? "#15803D"
+                        : realtimeStatus === "connecting"
+                          ? colors.primary
+                          : "#B91C1C",
+                    fontSize: 12,
+                    fontWeight: "700",
+                  }}
+                >
+                  {realtimeStatus === "connected"
+                    ? "Realtime aktif"
+                    : realtimeStatus === "connecting"
+                      ? "Realtime menyambung"
+                      : "Realtime terputus"}
                 </Text>
               </View>
               <Pressable

@@ -14,6 +14,8 @@ type AuthContextValue = {
   user: User | null;
   loading: boolean;
   authError: string | null;
+  realtimeStatus: "connecting" | "connected" | "disconnected";
+  realtimeRevision: number;
   signOut: () => Promise<void>;
 };
 
@@ -23,6 +25,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<
+    "connecting" | "connected" | "disconnected"
+  >("disconnected");
+  const [realtimeRevision, setRealtimeRevision] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -33,6 +39,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       receivedAuthEvent = true;
       if (mounted) {
+        setRealtimeStatus(nextSession ? "connecting" : "disconnected");
+        setRealtimeRevision((current) => (nextSession ? current : 0));
         setSession(nextSession);
         setAuthError(null);
         setLoading(false);
@@ -45,8 +53,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (!mounted || receivedAuthEvent) return;
         if (error) {
           setSession(null);
+          setRealtimeStatus("disconnected");
+          setRealtimeRevision(0);
           setAuthError(error.message);
         } else {
+          setRealtimeStatus(data.session ? "connecting" : "disconnected");
+          setRealtimeRevision(0);
           setSession(data.session);
         }
         setLoading(false);
@@ -54,6 +66,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .catch((error: unknown) => {
         if (!mounted || receivedAuthEvent) return;
         setSession(null);
+        setRealtimeStatus("disconnected");
+        setRealtimeRevision(0);
         setAuthError(
           error instanceof Error ? error.message : "Gagal memulihkan sesi autentikasi.",
         );
@@ -65,6 +79,47 @@ export function AuthProvider({ children }: PropsWithChildren) {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const userId = session?.user.id;
+    if (!userId) {
+      return;
+    }
+
+    let mounted = true;
+
+    const channel = supabase
+      .channel(`library_tasks:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "library_tasks",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          if (mounted) {
+            setRealtimeRevision((current) => current + 1);
+          }
+        },
+      )
+      .subscribe((status) => {
+        if (!mounted) return;
+        if (status === "SUBSCRIBED") {
+          setRealtimeStatus("connected");
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setRealtimeStatus("disconnected");
+        } else if (status === "CLOSED") {
+          setRealtimeStatus("disconnected");
+        }
+      });
+
+    return () => {
+      mounted = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [session?.user.id]);
 
   async function signOut() {
     const { error } = await supabase.auth.signOut();
@@ -80,6 +135,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         user: session?.user ?? null,
         loading,
         authError,
+        realtimeStatus,
+        realtimeRevision,
         signOut,
       }}
     >
